@@ -1,3 +1,10 @@
+import Votes from './votes/collection.js'
+
+export const recalculateBaseScore = (document, power) => {
+  const votes = Votes.find({ documentId: document._id }).fetch() || [];
+  return votes.reduce((sum, vote) => { return vote.power + sum}, 0)
+}
+
 export const recalculateScore = item => {
 
   // Age Check
@@ -23,7 +30,7 @@ export const recalculateScore = item => {
   } else {
 
     return item.baseScore;
-  
+
   }
 
 };
