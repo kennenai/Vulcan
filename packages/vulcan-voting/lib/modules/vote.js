@@ -1,8 +1,8 @@
-import { Connectors, debug, debugGroup, debugGroupEnd /* runCallbacksAsync, runCallbacks, addCallback */ } from 'meteor/vulcan:core';
+import { Connectors, debug, debugGroup, debugGroupEnd, runCallbacksAsync, runCallbacks } from 'meteor/vulcan:core';
 import { createError } from 'apollo-errors';
 import Votes from './votes/collection.js';
 import Users from 'meteor/vulcan:users';
-import { recalculateScore } from './scoring.js';
+import { recalculateScore, recalculateBaseScore } from './scoring.js';
 
 /*
 
@@ -50,7 +50,7 @@ Test if a user has voted on the server
 
 */
 const hasVotedServer = async ({ document, voteType, user }) => {
-  const vote = await Connectors.get(Votes, {documentId: document._id, userId: user._id, voteType});
+  const vote = await Connectors.get(Votes, {documentId: document._id, userId: user._id, voteType}, {}, true);
   return vote;
 }
 
@@ -94,16 +94,17 @@ const addVoteServer = async (voteOptions) => {
   delete vote.__typename;
   await Connectors.create(Votes, vote);
 
-  // initialize baseScore to vote power if not defined yet
-  newDocument.baseScore = document.baseScore ? document.baseScore + vote.power : vote.power;
+  // Recalculate base score
+  // https://github.com/LessWrong2/Vulcan/commit/97579b25e13e515ac977bc9c2c3ace1999d71e1e#diff-980170ae70f6e2daccdf25f406224589
+  newDocument.baseScore = recalculateBaseScore(newDocument)
   newDocument.score = recalculateScore(newDocument);
 
   if (updateDocument) {
     // update document score & set item as active
-    await Connectors.update(collection, {_id: document._id}, {$set: {inactive: false, baseScore: newDocument.baseScore, score: newDocument.score}});
+    await Connectors.update(collection, {_id: document._id}, {$set: {inactive: false, baseScore: newDocument.baseScore, score: newDocument.score}}, {}, true);
   }
 
-  return newDocument;
+  return { newDocument, vote };
 }
 
 /*
@@ -111,7 +112,7 @@ const addVoteServer = async (voteOptions) => {
 Cancel votes of a specific type on a given document (client)
 
 */
-const cancelVoteClient = ({ document, voteType }) => {
+export const cancelVoteClient = ({ document, voteType }) => {
   const vote = _.findWhere(document.currentUserVotes, { voteType });
   const newDocument = _.clone(document);
   if (vote) {
@@ -150,11 +151,15 @@ const clearVotesServer = async ({ document, user, collection, updateDocument }) 
   const newDocument = _.clone(document);
   const votes = await Connectors.find(Votes, { documentId: document._id, userId: user._id});
   if (votes.length) {
-    await Connectors.delete(Votes, {documentId: document._id, userId: user._id});
+    await Connectors.delete(Votes, {documentId: document._id, userId: user._id}, {}, true);
+    votes.forEach((vote) => {
+      runCallbacks(`votes.cancel.sync`, {newDocument, vote}, collection, user)
+      runCallbacksAsync(`votes.cancel.async`, {newDocument, vote}, collection, user)
+    })
     if (updateDocument) {
-      await Connectors.update(collection, {_id: document._id}, {$inc: {baseScore: -calculateTotalPower(votes) }});
+      await Connectors.update(collection, {_id: document._id}, {$set: {baseScore: recalculateBaseScore(document) }}, {}, true)
     }
-    newDocument.baseScore -= calculateTotalPower(votes);
+    newDocument.baseScore = recalculateBaseScore(newDocument);
     newDocument.score = recalculateScore(newDocument);
   }
   return newDocument;
@@ -165,24 +170,34 @@ const clearVotesServer = async ({ document, user, collection, updateDocument }) 
 Cancel votes of a specific type on a given document (server)
 
 */
-const cancelVoteServer = async (existingVote, { document, voteType, collection, user, updateDocument }) => {
+export const cancelVoteServer = async ({ document, voteType, collection, user, updateDocument }) => {
 
   const newDocument = _.clone(document);
 
-  const vote = existingVote;
+  const vote = Votes.findOne({documentId: document._id, userId: user._id, voteType})
 
   // remove vote object
-  await Connectors.delete(Votes, {_id: vote._id});
+  await Connectors.delete(Votes, {_id: vote._id}, {}, true);
+
+  newDocument.baseScore = recalculateBaseScore(newDocument);
+  newDocument.score = recalculateScore(newDocument);
 
   if (updateDocument) {
     // update document score
-    await Connectors.update(collection, {_id: document._id}, {$inc: {baseScore: -vote.power }});
+    await Connectors.update(
+      collection,
+      {_id: document._id},
+      {$set: {
+        inactive: false,
+        score: newDocument.score,
+        baseScore: newDocument.baseScore
+      }},
+      {},
+      true
+    );
   }
 
-  newDocument.baseScore -= vote.power;
-  newDocument.score = recalculateScore(newDocument);
-
-  return newDocument;
+  return { newDocument, vote };
 }
 
 /*
@@ -240,28 +255,24 @@ export const performVoteClient = ({ document, collection, voteType = 'upvote', u
     throw new Error(`Cannot perform operation '${collectionName.toLowerCase()}.${voteType}'`);
   }
 
-  const voteOptions = {document, collection, voteType, user, voteId};
+  let voteOptions = {document, collection, voteType, user, voteId};
 
   if (hasVotedClient({document, voteType})) {
 
-    // console.log('action: cancel')
     returnedDocument = cancelVoteClient(voteOptions);
-    // returnedDocument = runCallbacks(`votes.cancel.client`, returnedDocument, collection, user);
+    returnedDocument = runCallbacks(`votes.cancel.client`, returnedDocument, collection, user, voteType);
 
   } else {
 
-    // console.log('action: vote')
-
     if (voteTypes[voteType].exclusive) {
-      clearVotesClient({document, collection, voteType, user, voteId})
+      const tempDocument = runCallbacks(`votes.clear.client`, voteOptions.document, collection, user);
+      voteOptions.document = clearVotesClient({document:tempDocument, collection, voteType, user, voteId})
     }
 
     returnedDocument = addVoteClient(voteOptions);
     // returnedDocument = runCallbacks(`votes.${voteType}.client`, returnedDocument, collection, user);
 
   }
-
-  // console.log('returnedDocument:', returnedDocument)
 
   return returnedDocument;
 }
@@ -270,12 +281,12 @@ export const performVoteClient = ({ document, collection, voteType = 'upvote', u
 
 Server-side database operation
 
-### updateDocument 
+### updateDocument
 if set to true, this will perform its own database updates. If false, will only
-return an updated document without performing any database operations on it. 
+return an updated document without performing any database operations on it.
 
 */
-export const performVoteServer = async ({ documentId, document, voteType = 'upvote', collection, voteId, user, updateDocument = true }) => {
+export const performVoteServer = async ({ documentId, document, voteType = 'upvote', collection, voteId = Random.id(), user, updateDocument = true }) => {
 
   const collectionName = collection.options.collectionName;
   document = document || await Connectors.get(collection, documentId);
@@ -297,23 +308,21 @@ export const performVoteServer = async ({ documentId, document, voteType = 'upvo
 
   if (existingVote) {
 
-    // console.log('action: cancel')
-
     // runCallbacks(`votes.cancel.sync`, document, collection, user);
-    document = await cancelVoteServer(existingVote, voteOptions);
-    // runCallbacksAsync(`votes.cancel.async`, vote, document, collection, user);
+    let voteDocTuple = await cancelVoteServer(voteOptions);
+    document = voteDocTuple.newDocument;
+    runCallbacksAsync(`votes.cancel.async`, voteDocTuple, collection, user);
 
   } else {
-
-    // console.log('action: vote')
 
     if (voteTypes[voteType].exclusive) {
       document = await clearVotesServer(voteOptions)
     }
 
     // runCallbacks(`votes.${voteType}.sync`, document, collection, user);
-    document = await addVoteServer(voteOptions);
-    // runCallbacksAsync(`votes.${voteType}.async`, vote, document, collection, user);
+    let voteDocTuple = await addVoteServer({...voteOptions, document}); //Make sure to pass the new document to addVoteServer
+    document = voteDocTuple.newDocument;
+    runCallbacksAsync(`votes.${voteType}.async`, voteDocTuple, collection, user);
 
   }
 

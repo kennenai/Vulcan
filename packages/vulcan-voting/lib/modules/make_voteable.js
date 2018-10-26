@@ -22,8 +22,7 @@ export const makeVoteable = collection => {
             if (!currentUser) return [];
             const votes = await Connectors.find(Votes, {userId: currentUser._id, documentId: document._id});
             if (!votes.length) return [];
-            return votes;
-            // return Users.restrictViewableFields(currentUser, Votes, votes);
+            return Users.restrictViewableFields(currentUser, Votes, votes)
           },
 
         }
@@ -50,8 +49,7 @@ export const makeVoteable = collection => {
           resolver: async (document, args, { Users, Votes, currentUser }) => {
             const votes = await Connectors.find(Votes, { documentId: document._id });
             if (!votes.length) return [];
-            return votes;
-            // return Users.restrictViewableFields(currentUser, Votes, votes);
+            return Users.restrictViewableFields(currentUser, Votes, votes);
           },
 
         }
@@ -72,19 +70,18 @@ export const makeVoteable = collection => {
       fieldSchema: {
         type: Array,
         optional: true,
-        canRead: ['guests'],
+        viewableBy: ['admins'],
         resolveAs: {
           type: '[User]',
-          resolver: async (document, args, { currentUser, Users }) => {
+          resolver: async (document, args, { currentUser, Users, Votes }) => {
             // eslint-disable-next-line no-undef
-            const votes = await Connectors.find(Votes, {itemId: document._id});
+            const votes = await Connectors.find(Votes, { documentId: document._id});
             const votersIds = _.pluck(votes, 'userId');
             // eslint-disable-next-line no-undef
             const voters = await Connectors.find(Users, {_id: {$in: votersIds}});
-            return voters;
+            return Users.restrictViewableFields(currentUser, Users, voters)
             // if (!document.upvoters) return [];
             // const upvoters = await Users.loader.loadMany(document.upvoters);
-            // return Users.restrictViewableFields(currentUser, Users, upvoters);
           },
         },
       }
@@ -131,7 +128,7 @@ export const makeVoteable = collection => {
     /**
       Whether the document is inactive. Inactive documents see their score recalculated less often
     */
-    { 
+    {
       fieldName: 'inactive',
       fieldSchema: {
         type: Boolean,
