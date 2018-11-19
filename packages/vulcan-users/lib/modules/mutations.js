@@ -38,14 +38,18 @@ const updateMutation = {
   check(user, document) {
     if (!user || !document) return false;
     // OpenCRUD backwards compatibility
-    return Users.owns(user, document) ? Users.canDo(user, ['users.update.own', 'users.edit.own']) : Users.canDo(user, [`users.update.all`, `users.edit.all`]);
+    return Users.owns(user, document) ? Users.canDo(user, ['user.update.own', 'users.edit.own']) : Users.canDo(user, ['user.update.all', 'users.edit.all']);
   },
 
-  async mutation(root, { input }, context) {
+  async mutation(root, { selector, data }, context) {
     const { Users, currentUser } = context;
-    const { selector, data } = input;
 
     const document = await Connectors.get(Users, selector);
+
+    if (!document) {
+      throw new Error(`Could not find document to update for selector: ${JSON.stringify(selector)}`);
+    }
+
     performCheck(this, currentUser, document);
 
     return updateMutator({
@@ -68,12 +72,16 @@ const deleteMutation = {
     return Users.owns(user, document) ? Users.canDo(user, ['users.delete.own', 'users.remove.own']) : Users.canDo(user, [`users.delete.all`, `users.remove.all`]);
   },
 
-  async mutation(root, { input }, context) {
+  async mutation(root, { selector }, context) {
 
     const { Users, currentUser } = context;
-    const { selector } = input;
 
-    const document = await Connectors.get(Users, selector);
+    const document = await Connectors.get(Users, selector)
+
+    if (!document) {
+      throw new Error(`Could not find document to delete for selector: ${JSON.stringify(selector)}`);
+    }
+
     performCheck(this, currentUser, document);
 
     return deleteMutator({

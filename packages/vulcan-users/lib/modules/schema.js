@@ -2,11 +2,11 @@ import SimpleSchema from 'simpl-schema';
 import { Utils, getCollection, Connectors, Locales } from 'meteor/vulcan:lib'; // import from vulcan:lib because vulcan:core isn't loaded yet
 
 ///////////////////////////////////////
-// Order for the Schema is as follows. Change as you see fit: 
-// 00. 
+// Order for the Schema is as follows. Change as you see fit:
+// 00.
 // 10. Display Name
 // 20. Email
-// 30. Bio 
+// 30. Bio
 // 40. Slug
 // 50. Website
 // 60. Twitter username
@@ -93,7 +93,7 @@ const schema = {
     optional: true,
     canCreate: ['admins'],
     canUpdate: ['admins'],
-    canRead: ['guests'],
+    canRead: ownsOrIsAdmin,
     group: adminGroup,
   },
   locale: {
@@ -202,7 +202,7 @@ const schema = {
       fieldName: 'avatarUrl',
       type: 'String',
       resolver: async (user, args, { Users }) => {
- 
+
         if (_.isEmpty(user)) return null;
 
         if (user.avatarUrl) {
@@ -213,7 +213,7 @@ const schema = {
           const fullUser = await Users.loader.load(user._id);
           return Users.avatar.getUrl(fullUser);
         }
-        
+
       }
     }
   },
@@ -264,7 +264,7 @@ const schema = {
     control: "checkboxgroup",
     canCreate: ['admins'],
     canUpdate: ['admins'],
-    canRead: ['guests'],
+    canRead: ownsOrIsAdmin,
     group: adminGroup,
     form: {
       options: function () {
@@ -289,7 +289,7 @@ const schema = {
       resolver: (user, args, { Users }) => {
         return Users.getProfileUrl(user, true);
       },
-    }  
+    }
   },
 
   editUrl: {
@@ -301,7 +301,7 @@ const schema = {
       resolver: (user, args, { Users }) => {
         return Users.getEditUrl(user, true);
       },
-    }  
+    }
   }
 
 };
