@@ -16,14 +16,16 @@ class HeadTags extends PureComponent {
 
     const url = this.props.url || Utils.getSiteUrl();
     const title = this.props.title || getSetting('title', 'My App');
-    const description = this.props.description || getSetting('tagline') || getSetting('description');
+    const pageType = this.props.type || 'website'
+    const formattedDescription = `${getSetting('tagline')}. ${getSetting('secondaryTagline')}`
+    const description = this.props.description || formattedDescription || getSetting('description');
 
     // default image meta: logo url, else site image defined in settings
     let image = !!getSetting('siteImage') ? getSetting('siteImage'): getSetting('logoUrl');
 
-    // overwrite default image if one is passed as props 
+    // overwrite default image if one is passed as props
     if (!!this.props.image) {
-      image = this.props.image; 
+      image = this.props.image;
     }
 
     // add site url base if the image is stored locally
@@ -38,15 +40,18 @@ class HeadTags extends PureComponent {
     return (
       <div>
         <Helmet>
-          
+
           <title>{title}</title>
 
           <meta charSet='utf-8'/>
           <meta name='description' content={description}/>
           <meta name='viewport' content='width=device-width, initial-scale=1'/>
 
+          {/* Open Graph */}
+          <meta property='og:site_name' content={getSetting('title', 'My App')}/>
+
           {/* facebook */}
-          <meta property='og:type' content='article'/>
+          <meta property='og:type' content={pageType}/>
           <meta property='og:url' content={url}/>
           <meta property='og:image' content={image}/>
           <meta property='og:title' content={title}/>
@@ -77,7 +82,7 @@ class HeadTags extends PureComponent {
           }
           return <HeadComponent key={index} />
         })}
-        
+
       </div>
     );
   }
