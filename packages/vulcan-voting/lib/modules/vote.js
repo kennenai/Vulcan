@@ -311,7 +311,7 @@ export const performVoteServer = async ({ documentId, document, voteType = 'upvo
     // runCallbacks(`votes.cancel.sync`, document, collection, user);
     let voteDocTuple = await cancelVoteServer(voteOptions);
     document = voteDocTuple.newDocument;
-    runCallbacksAsync(`votes.cancel.async`, voteDocTuple, collection, user);
+    runCallbacksAsync(`votes.cancel.async`, document, user, collection,  'cancelUpvote');
 
   } else {
 
@@ -322,7 +322,8 @@ export const performVoteServer = async ({ documentId, document, voteType = 'upvo
     // runCallbacks(`votes.${voteType}.sync`, document, collection, user);
     let voteDocTuple = await addVoteServer({...voteOptions, document}); //Make sure to pass the new document to addVoteServer
     document = voteDocTuple.newDocument;
-    runCallbacksAsync(`votes.${voteType}.async`, voteDocTuple, collection, user);
+
+    runCallbacksAsync(`votes.${voteType}.async`, document, user, collection,  voteType);
 
   }
 

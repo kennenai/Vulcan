@@ -33,4 +33,13 @@ Users.addField([
       optional: true
     }
   },
+  {
+    fieldName: 'upvoteCount',
+    fieldSchema: {
+      type: Number,
+      optional: true,
+      defaultValue: 0,
+      viewableBy: ['guests'],
+    }
+  },
 ]);

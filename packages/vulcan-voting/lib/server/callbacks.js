@@ -1,6 +1,6 @@
-// import { addCallback, Utils } from 'meteor/vulcan:core';
-// import Users from 'meteor/vulcan:users';
-// import { getVotePower } from '../modules/vote.js';
+import { addCallback, Utils } from 'meteor/vulcan:core';
+import Users from 'meteor/vulcan:users';
+import { getVotePower } from '../modules/vote.js';
 // import { updateScore } from './scoring.js';
 
 // ----------------------------- vote.async ------------------------------- //
@@ -30,47 +30,45 @@
  * @param {object} collection - The collection the item belongs to
  * @param {string} operation - The operation being performed
  */
-// function updateUser(item, user, collection, operation, context) {
-  
-//   // uncomment for debug
-//   // console.log(item);
-//   // console.log(user);
-//   // console.log(collection._name);
-//   // console.log(operation);
+function updateUser(item, user, collection, operation, context) {
 
-//   const update = {};
-//   const votePower = getVotePower(user);
-//   const vote = {
-//     itemId: item._id,
-//     votedAt: new Date(),
-//     power: votePower
-//   };
-  
-//   const collectionName = Utils.capitalize(collection._name);
+  // uncomment for debug
+  // console.log('item = ');
+  // console.log(item);
+  // console.log('user = ');
+  // console.log(user);
+  // console.log('collection._name = ');
+  // console.log(collection._name);
+  // console.log('operation = ');
+  // console.log(operation);
 
-//   switch (operation) {
-//     case "upvote":
-//       update.$addToSet = {[`upvoted${collectionName}`]: vote};
-//       break;
-//     case "downvote":
-//       update.$addToSet = {[`downvoted${collectionName}`]: vote};
-//       break;
-//     case "cancelUpvote":
-//       update.$pull = {[`upvoted${collectionName}`]: {itemId: item._id}};
-//       break;
-//     case "cancelDownvote":
-//       update.$pull = {[`downvoted${collectionName}`]: {itemId: item._id}};
-//       break;
-//   }
+  const update = {};
+  const vote = {
+    itemId: item._id,
+    votedAt: new Date()
+  };
 
-//   Users.update({_id: user._id}, update);
+  const collectionName = Utils.capitalize(collection._name);
 
-// }
+  const newUpvoteCount = operation === 'upvote' ? 1 : -1
 
-// addCallback("upvote.async", updateUser);
-// addCallback("downvote.async", updateUser);
-// addCallback("cancelUpvote.async", updateUser);
-// addCallback("cancelDownvote.async", updateUser);
+  switch (operation) {
+    case "upvote":
+      update.$addToSet = {[`upvoted${collectionName}`]: vote};
+      break;
+    case "cancelUpvote":
+      update.$pull = {[`upvoted${collectionName}`]: {itemId: item._id}};
+      break;
+   }
+
+   // also update the upvote counter cache
+   update.$inc = { 'upvoteCount': newUpvoteCount }
+
+   Users.update({_id: user._id}, update);
+}
+
+addCallback("votes.upvote.async", updateUser);
+addCallback("votes.cancel.async", updateUser);
 
 /**
  * @summary Update the karma of the item's owner
