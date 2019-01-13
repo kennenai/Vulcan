@@ -18,7 +18,7 @@ const resolver = {
       }
     },
     async testNewsletter(root, args, context) {
-      if(context.currentUser && Users.isAdminById(context.currentUser._id)) 
+      if(context.currentUser && Users.isAdminById(context.currentUser._id))
         return await Newsletters.send(true);
     },
     async addUserNewsletter(root, {userId}, context) {
@@ -31,7 +31,12 @@ const resolver = {
       return await Newsletters.subscribeUser(user, false);
     },
     async addEmailNewsletter(root, {email}, context) {
-      return await Newsletters.subscribeEmail(email, true);
+      if (context.currentUser) {
+        return await Newsletters.subscribeEmailForCurrentUser(context.currentUser, email, true);
+      } else {
+        return await Newsletters.subscribeEmail(email, true);
+      }
+
     },
     async removeUserNewsletter(root, { userId }, context) {
       const currentUser = context.currentUser;
@@ -39,7 +44,7 @@ const resolver = {
       if (!user || !Users.options.mutations.edit.check(currentUser, user)) {
         throw new Error(Utils.encodeIntlError({id: "app.noPermission"}));
       }
-      
+
       try {
         return await Newsletters.unsubscribeUser(user);
       } catch (error) {

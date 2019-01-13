@@ -15,6 +15,8 @@ subscribeUser
 
 subscribeEmail
 
+subscribeEmailForCurrentUser
+
 unsubscribeUser
 
 unsubscribeEmail
@@ -46,7 +48,11 @@ Newsletters.subscribeUser = async (user, confirm = false) => {
   console.log(`// Adding ${email} to ${provider} list…`);
   const result = Newsletters[provider].subscribe(email, confirm);
   // eslint-disable-next-line no-console
-  if (result) {console.log ('-> added')}
+  console.log(result)
+  if (result) {
+    console.log ('-> added')
+  }
+
   await Connectors.update(Users, user._id, {$set: {newsletter_subscribeToNewsletter: true}});
 }
 
@@ -62,6 +68,22 @@ Newsletters.subscribeEmail = (email, confirm = false) => {
   if (result) {console.log ('-> added')}
 }
 
+/**
+ * @summary Subscribe a user who signed up through OAuth to the newsletter
+ * They have an account but no email on their profile so we will add them
+ * to the newsletter and also add the email to their account
+ * @param {Object} user
+ * @param {String} email
+ */
+Newsletters.subscribeEmailForCurrentUser = async (user, email, confirm = false) => {
+  // eslint-disable-next-line no-console
+  console.log(`// Adding ${email} to ${provider} list…`);
+  const result = Newsletters[provider].subscribe(email, confirm);
+  // eslint-disable-next-line no-console
+  if (result) {console.log ('-> added')}
+
+  await Connectors.update(Users, user._id, {$set: {email: email, newsletter_subscribeToNewsletter: true}});
+}
 
 /**
  * @summary Unsubscribe a user from the newsletter
@@ -76,7 +98,7 @@ Newsletters.unsubscribeUser = async (user) => {
   // eslint-disable-next-line no-console
   console.log('// Removing "'+email+'" from list…');
   Newsletters[provider].unsubscribe(email);
-  await Connectors.update(Users, user._id, {$set: {newsletter_subscribeToNewsletter: false}}); 
+  await Connectors.update(Users, user._id, {$set: {newsletter_subscribeToNewsletter: false}});
 }
 
 /**
@@ -110,7 +132,7 @@ Newsletters.getSubject = posts => {
 
 //   // 1. Iterate through posts and pass each of them through a handlebars template
 //   posts.forEach(function (post, index) {
-    
+
 //     // get author of the current post
 //     var postUser = Users.findOne(post.userId);
 
@@ -281,7 +303,7 @@ Newsletters.send = async (isTest = false) => {
 
     // eslint-disable-next-line no-console
     console.log('No newsletter to schedule today…');
-  
+
   }
 }
 
