@@ -2,7 +2,7 @@ import React, { PureComponent } from 'react';
 import PropTypes from 'prop-types';
 import Helmet from 'react-helmet';
 import { registerComponent, Utils, getSetting, registerSetting, Head } from 'meteor/vulcan:lib';
-import { compose } from 'react-apollo';
+import { compose } from 'react-apollo'
 
 registerSetting('logoUrl', null, 'Absolute URL for the logo image');
 registerSetting('title', 'My App', 'App title');
@@ -14,14 +14,22 @@ registerSetting('faviconUrl', '/img/favicon.ico', 'Favicon absolute URL');
 class HeadTags extends PureComponent {
   render() {
 
-    const url = this.props.url || Utils.getSiteUrl();
-    const title = this.props.title || getSetting('title', 'My App');
-    const pageType = this.props.type || 'website'
+    const { url, title, type, description, author, publicationDate, postedDate, tags, sectionName } = this.props
     const formattedDescription = `${getSetting('tagline')}. ${getSetting('secondaryTagline')}`
-    const description = this.props.description || formattedDescription || getSetting('description');
+    const descriptionTag = description || formattedDescription
+
+    const isArticle = () => {
+      return type.includes('article')
+    }
+
+    const isSection = () => {
+      return type.includes('section')
+    }
+
+    const twitterCardType = isArticle ? 'summary_large_image' : 'summary'
 
     // default image meta: logo url, else site image defined in settings
-    let image = !!getSetting('siteImage') ? getSetting('siteImage'): getSetting('logoUrl');
+    let image = !!getSetting('siteImage') ? getSetting('siteImage') : getSetting('squareLogoUrl');
 
     // overwrite default image if one is passed as props
     if (!!this.props.image) {
@@ -44,24 +52,33 @@ class HeadTags extends PureComponent {
           <title>{title}</title>
 
           <meta charSet='utf-8'/>
-          <meta name='description' content={description}/>
+          <meta name='description' content={descriptionTag}/>
           <meta name='viewport' content='width=device-width, initial-scale=1'/>
 
           {/* Open Graph */}
-          <meta property='og:site_name' content={getSetting('title', 'My App')}/>
+          <meta property='og:site_name' content={title}/>
+
+          {/* Author tags */}
+          { author ? <meta property="author" content={author.name} /> : null }
 
           {/* facebook */}
-          <meta property='og:type' content={pageType}/>
+          <meta property='og:type' content={type}/>
           <meta property='og:url' content={url}/>
           <meta property='og:image' content={image}/>
           <meta property='og:title' content={title}/>
-          <meta property='og:description' content={description}/>
+          <meta property='og:locale' content={getSetting('locale')}/>
+          <meta property='og:description' content={descriptionTag}/>
+          { isSection && sectionName ? <meta property="article:section" content={sectionName} /> : null }
+          { publicationDate != null ? <meta property="article:published_time" content={publicationDate} /> : null }
+          { postedDate != null ? <meta property="article:modified_time" content={postedDate} /> : null }
+          { tags.map((tag, index) => <meta key={index} property="article:tag" content={tag} />) }
 
           {/* twitter */}
-          <meta name='twitter:card' content='summary'/>
-          <meta name='twitter:image:src' content={image}/>
+          <meta name='twitter:card' content={twitterCardType}/>
+          <meta name='twitter:site' content={getSetting('twitterHandle')}/>
+          <meta name='twitter:image' content={image}/>
           <meta name='twitter:title' content={title}/>
-          <meta name='twitter:description' content={description}/>
+          <meta name='twitter:description' content={descriptionTag}/>
 
           <link rel='canonical' href={url}/>
           <link name='favicon' rel='shortcut icon' href={getSetting('faviconUrl', '/img/favicon.ico')}/>
@@ -91,8 +108,20 @@ class HeadTags extends PureComponent {
 HeadTags.propTypes = {
   url: PropTypes.string,
   title: PropTypes.string,
+  type: PropTypes.string,
+  sectionName: PropTypes.string,
   description: PropTypes.string,
   image: PropTypes.string,
+  publicationDate: PropTypes.string,
+  tags: PropTypes.array,
+};
+
+HeadTags.defaultProps = {
+  url: Utils.getSiteUrl(),
+  title: getSetting('title', 'My App'),
+  type: 'website',
+  description: getSetting('description'),
+  tags: []
 };
 
 registerComponent('HeadTags', HeadTags);
